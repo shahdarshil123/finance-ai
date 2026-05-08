@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import CompanySelector from '../components/CompanySelector'
-import DocumentUpload from '../components/DocumentUpload'
 import StockChart from '../components/StockChart'
 
 export default function Dashboard() {
@@ -66,7 +65,11 @@ export default function Dashboard() {
 
       {stockData && <StockChart data={stockData.data} ticker={stockData.ticker} />}
 
-      <DocumentUpload />
+      {!stockData && !loading && (
+        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400 text-sm">
+          Enter a ticker and date range above to load the stock chart.
+        </div>
+      )}
     </div>
   )
 }

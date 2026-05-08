@@ -127,6 +127,15 @@ function EventCard({ event, sources }) {
     )
   }
 
+  if (event.type === 'step') {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-400 pl-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-300 shrink-0" />
+        {event.content}
+      </div>
+    )
+  }
+
   if (event.type === 'tool_call') {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">

@@ -19,7 +19,7 @@ httpx
 aiofiles
 
 # AI / Embeddings
-google-generativeai
+google-genai
 sentence-transformers
 torch
 
@@ -35,3 +35,9 @@ PyPDF2
 # Document Processing
 beautifulsoup4
 html5lib
+
+# MCP server
+mcp
+
+# LangGraph
+langgraph

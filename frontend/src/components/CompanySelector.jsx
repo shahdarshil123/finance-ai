@@ -46,7 +46,7 @@ export default function CompanySelector({ onSelect, loading }) {
         disabled={loading || !ticker.trim()}
         className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
       >
-        {loading ? 'Loading...' : 'Analyze'}
+        {loading ? 'Loading…' : 'Load Chart'}
       </button>
     </form>
   )

@@ -1,4 +1,5 @@
 import re
+from typing import Callable
 
 import pdfplumber
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +26,6 @@ def chunk_text(text: str) -> list[str]:
         slen = len(sentence)
         if length + slen > settings.chunk_size and current:
             chunks.append(" ".join(current))
-            # slide the window back by overlap amount
             while current and length > settings.chunk_overlap:
                 removed = current.pop(0)
                 length -= len(removed) + 1
@@ -38,14 +38,27 @@ def chunk_text(text: str) -> list[str]:
     return chunks
 
 
-async def process_document(document_id: int, text: str, db: AsyncSession) -> None:
+async def process_document(
+    document_id: int,
+    text: str,
+    db: AsyncSession,
+    log: Callable[[str], None] | None = None,
+) -> None:
+    def emit(msg: str):
+        if log:
+            log(msg)
+
     document = await db.get(Document, document_id)
     document.status = "processing"
     await db.commit()
 
     try:
+        emit("Chunking text…")
         chunks = chunk_text(text)
+        emit(f"Created {len(chunks)} chunks. Generating embeddings…")
+
         embeddings = await embed_texts(chunks)
+        emit(f"Embeddings ready. Saving {len(chunks)} chunks to database…")
 
         for idx, (content, embedding) in enumerate(zip(chunks, embeddings)):
             db.add(DocumentChunk(
@@ -57,7 +70,9 @@ async def process_document(document_id: int, text: str, db: AsyncSession) -> Non
 
         document.status = "completed"
         await db.commit()
-    except Exception:
+        emit("Completed.")
+    except Exception as exc:
         document.status = "failed"
         await db.commit()
+        emit(f"Failed: {exc}")
         raise
