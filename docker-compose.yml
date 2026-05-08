@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial_ai_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://financial_user:financial_password@db:5432/financial_db
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=True
+      - EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+      - EMBEDDING_DIMENSION=384
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - financial_network
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: financial_db
+    environment:
+      POSTGRES_USER: financial_user
+      POSTGRES_PASSWORD: financial_password
+      POSTGRES_DB: financial_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U financial_user -d financial_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - financial_network
+
+volumes:
+  postgres_data:
+
+networks:
+  financial_network:
+    driver: bridge

@@ -1,0 +1,37 @@
+# Web framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlalchemy
+asyncpg
+pgvector
+alembic
+
+# Config
+pydantic
+pydantic-settings
+python-dotenv
+
+# HTTP
+httpx
+aiofiles
+
+# AI / Embeddings
+google-generativeai
+sentence-transformers
+torch
+
+# Data
+numpy
+pandas
+yfinance
+
+# PDF Parsing
+pdfplumber
+PyPDF2
+
+# Document Processing
+beautifulsoup4
+html5lib
