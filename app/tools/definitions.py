@@ -72,6 +72,26 @@ TOOL_DECLARATIONS = [
         },
     },
     {
+        "name": "get_stock_valuation",
+        "description": (
+            "Get current valuation metrics for a stock: live price, trailing/forward P/E, "
+            "P/B ratio, EPS, revenue and earnings growth, 52-week range, analyst consensus "
+            "(Buy/Hold/Sell), analyst mean price target with implied upside %, dividend yield, "
+            "and beta. Use this whenever you need to evaluate whether a stock is attractively "
+            "priced or to form a buy / hold / sell recommendation."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol e.g. AAPL, MSFT, TSLA",
+                },
+            },
+            "required": ["ticker"],
+        },
+    },
+    {
         "name": "compare_to_benchmark",
         "description": (
             "Compare a stock's return against a benchmark index to compute alpha. "

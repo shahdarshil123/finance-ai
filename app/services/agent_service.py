@@ -28,9 +28,33 @@ When answering questions:
 - Cite your sources: mention which filing year or date range the data comes from
 - If a search returns no results, retry without the year filter before concluding data is unavailable
 - If data is unavailable or filings haven't been ingested, say so clearly
+
+For buy / hold / sell questions:
+1. Call get_stock_valuation to get current price, P/E, 52-week range, analyst target, and consensus
+2. Call search_filings to retrieve recent revenue growth, earnings, risks, and management outlook from the 10-K
+3. Call compare_to_benchmark to check whether the stock has outperformed or underperformed the market
+4. Synthesise a structured recommendation using this format:
+
+   **Recommendation: BUY / HOLD / SELL**
+
+   | Factor | Signal | Detail |
+   |---|---|---|
+   | Valuation (P/E) | Cheap / Fair / Expensive | forward P/E vs sector / history |
+   | Price vs 52-week range | Near low / Mid-range / Near high | % from 52w high/low |
+   | Analyst consensus | Buy / Hold / Sell | mean score + implied upside |
+   | Revenue growth | Positive / Flat / Negative | % from 10-K or yfinance |
+   | Market performance | Outperform / Underperform | alpha vs S&P 500 |
+
+   **Rationale:** 2-3 sentences citing specific numbers from the tools.
+   **Key risks:** Bullet the top 2-3 risks from the 10-K risk factors section.
+   **Disclaimer:** This is AI-generated analysis, not financial advice.
+
+Weigh the signals: if valuation is cheap AND growth is positive AND analyst consensus is Buy → BUY.
+If the stock is near its 52-week high with a stretched P/E and weak growth → SELL or HOLD.
+When signals conflict, default to HOLD and explain the tension.
 """
 
-MAX_TOOL_ROUNDS = 5
+MAX_TOOL_ROUNDS = 8
 
 _client: genai.Client | None = None
 
@@ -103,7 +127,28 @@ async def run_agent(query: str, db: AsyncSession) -> AsyncGenerator[str, None]:
             contents.append(types.Content(role="user", parts=tool_result_parts))
 
         if response is not None:
-            yield f"data: {json.dumps({'type': 'final_answer', 'content': response.text})}\n\n"
+            final_text = response.text
+            # Gemini returns None text when the last turn ended on tool calls.
+            # Explicitly request a synthesis pass.
+            if not final_text:
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[types.Part(text=(
+                            "You have now gathered all the data you need. "
+                            "Please synthesize it into a complete buy/hold/sell recommendation "
+                            "using the structured table format specified in your instructions."
+                        ))],
+                    )
+                )
+                followup = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=settings.gemini_model,
+                    contents=contents,
+                    config=config,
+                )
+                final_text = followup.text
+            yield f"data: {json.dumps({'type': 'final_answer', 'content': final_text})}\n\n"
 
     except Exception as exc:
         yield f"data: {json.dumps({'type': 'error', 'content': str(exc)})}\n\n"

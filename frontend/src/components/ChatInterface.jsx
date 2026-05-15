@@ -1,14 +1,27 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import Markdown from 'react-markdown'
 
 export default function ChatInterface() {
   const [query, setQuery]   = useState('')
-  const [events, setEvents] = useState([])
+  const [events, setEvents] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('chat_events')) ?? [] }
+    catch { return [] }
+  })
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
+    localStorage.setItem('chat_events', JSON.stringify(events))
+  }, [events])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [events])
+
+  const handleClear = () => {
+    setEvents([])
+    localStorage.removeItem('chat_events')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -63,6 +76,20 @@ export default function ChatInterface() {
           <p className="text-gray-400 text-sm text-center mt-8">
             Ask anything about a company's stock performance or filings.
           </p>
+        )}
+        {events.length > 0 && !loading && (
+          <div className="flex justify-end">
+            <button
+              onClick={handleClear}
+              className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M4 7h16" />
+              </svg>
+              Clear chat
+            </button>
+          </div>
         )}
         {events.map((event, i) => {
           // Collect all filing sources seen so far for the final answer
@@ -205,9 +232,9 @@ function EventCard({ event, sources }) {
       <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-3">
         <div>
           <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Answer</p>
-          <p className="text-gray-800 text-sm whitespace-pre-wrap leading-relaxed">
-            {event.content}
-          </p>
+          <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
+            <Markdown>{event.content}</Markdown>
+          </div>
         </div>
         {sources && sources.length > 0 && (
           <SourcesPanel sources={sources} />

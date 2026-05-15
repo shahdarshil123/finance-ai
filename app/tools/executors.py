@@ -9,10 +9,14 @@ from app.services.stock_service import (
     calculate_returns,
     compare_to_benchmark,
     fetch_price_history,
+    get_stock_valuation,
 )
 
 
 async def execute_tool(name: str, args: dict, db: AsyncSession) -> dict:
+    if name == "get_stock_valuation":
+        return await get_stock_valuation(ticker=args["ticker"])
+
     if name == "get_stock_metrics":
         return await calculate_returns(
             ticker=args["ticker"],
