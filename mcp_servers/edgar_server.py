@@ -51,7 +51,7 @@ async def list_10k_filings(ticker: str) -> str:
 
     lines = [f"10-K filings for {ticker.upper()} (CIK: {int(cik)}):"]
     for f in filings[:20]:
-        lines.append(f"  • filed {f['filing_date']}  →  use year={f['filing_year']}")
+        lines.append(f"  • filed {f['filing_date']}  →  use year={f['fiscal_year']}")
     return "\n".join(lines)
 
 
@@ -68,10 +68,10 @@ async def get_filing_metadata(ticker: str, year: int) -> str:
     """
     cik     = await get_cik(ticker)
     filings = await get_10k_filings(cik)
-    matches = [f for f in filings if f["filing_year"] == year]
+    matches = [f for f in filings if f["fiscal_year"] == year]
 
     if not matches:
-        available = sorted({f["filing_year"] for f in filings}, reverse=True)
+        available = sorted({f["fiscal_year"] for f in filings}, reverse=True)
         return (
             f"No 10-K found for {ticker.upper()} in {year}. "
             f"Available years: {available[:10]}"

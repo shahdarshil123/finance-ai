@@ -37,17 +37,22 @@ async def get_10k_filings(cik: str) -> list[dict]:
     recent       = data.get("filings", {}).get("recent", {})
     forms        = recent.get("form", [])
     dates        = recent.get("filingDate", [])
+    report_dates = recent.get("reportDate", [])
     accessions   = recent.get("accessionNumber", [])
     primary_docs = recent.get("primaryDocument", [])
 
+    # Pad report_dates in case the field is missing or shorter
+    report_dates = list(report_dates) + [""] * max(0, len(forms) - len(report_dates))
+
     return [
         {
-            "filing_date": date,
-            "filing_year": int(date[:4]),
-            "accession":   accession,
-            "primary_doc": doc,
+            "filing_date":  date,
+            "fiscal_year":  int(report_date[:4]) if report_date else int(date[:4]),
+            "accession":    accession,
+            "primary_doc":  doc,
         }
-        for form, date, accession, doc in zip(forms, dates, accessions, primary_docs)
+        for form, date, report_date, accession, doc
+        in zip(forms, dates, report_dates, accessions, primary_docs)
         if form in ("10-K", "10-K405")
     ]
 
@@ -164,7 +169,7 @@ async def find_10k_pdf_url(ticker: str, year: int) -> str | None:
     try:
         cik     = await get_cik(ticker)
         filings = await get_10k_filings(cik)
-        matches = [f for f in filings if f["filing_year"] == year]
+        matches = [f for f in filings if f["fiscal_year"] == year]
         if not matches:
             return None
         return await _find_pdf_in_index(cik, matches[0]["accession"])
@@ -186,10 +191,10 @@ async def download_10k(ticker: str, year: int) -> tuple[str, dict]:
     """Download 10-K text only (no file saved). Used by the MCP server."""
     cik     = await get_cik(ticker)
     filings = await get_10k_filings(cik)
-    matches = [f for f in filings if f["filing_year"] == year]
+    matches = [f for f in filings if f["fiscal_year"] == year]
 
     if not matches:
-        available = sorted({f["filing_year"] for f in filings}, reverse=True)
+        available = sorted({f["fiscal_year"] for f in filings}, reverse=True)
         raise ValueError(
             f"No 10-K found for {ticker.upper()} in {year}. "
             f"Available years: {available[:10]}"
@@ -226,10 +231,10 @@ async def download_and_save_10k(
     cik     = await get_cik(ticker)
     log(f"CIK found: {int(cik)} — fetching filing list…")
     filings = await get_10k_filings(cik)
-    matches = [f for f in filings if f["filing_year"] == year]
+    matches = [f for f in filings if f["fiscal_year"] == year]
 
     if not matches:
-        available = sorted({f["filing_year"] for f in filings}, reverse=True)
+        available = sorted({f["fiscal_year"] for f in filings}, reverse=True)
         raise ValueError(
             f"No 10-K found for {ticker.upper()} in {year}. "
             f"Available years: {available[:10]}"

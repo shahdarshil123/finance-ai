@@ -72,6 +72,28 @@ TOOL_DECLARATIONS = [
         },
     },
     {
+        "name": "fetch_10k",
+        "description": (
+            "Download and ingest a 10-K SEC filing for a company so it becomes searchable. "
+            "Call this when search_filings returns no results for a ticker/year. "
+            "After this tool completes, retry search_filings with the same ticker and year."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol e.g. AAPL, MSFT",
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "Fiscal year of the 10-K filing e.g. 2022",
+                },
+            },
+            "required": ["ticker", "year"],
+        },
+    },
+    {
         "name": "get_stock_valuation",
         "description": (
             "Get current valuation metrics for a stock: live price, trailing/forward P/E, "

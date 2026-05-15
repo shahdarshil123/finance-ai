@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Company, Document, DocumentChunk
+from app.services import edgar_service
+from app.services.document_processor import process_document
 from app.services.embeddings import embed_texts
 from app.services.stock_service import (
     calculate_returns,
@@ -14,6 +16,9 @@ from app.services.stock_service import (
 
 
 async def execute_tool(name: str, args: dict, db: AsyncSession) -> dict:
+    if name == "fetch_10k":
+        return await _fetch_and_ingest_10k(args["ticker"], int(args["year"]), db)
+
     if name == "get_stock_valuation":
         return await get_stock_valuation(ticker=args["ticker"])
 
@@ -91,3 +96,38 @@ async def _search_filings(args: dict, db: AsyncSession) -> dict:
             for row in rows
         ]
     }
+
+
+async def _fetch_and_ingest_10k(ticker: str, year: int, db: AsyncSession) -> dict:
+    try:
+        text, meta = await edgar_service.download_and_save_10k(ticker, year)
+
+        result = await db.execute(select(Company).where(Company.ticker == ticker.upper()))
+        company = result.scalar_one_or_none()
+        if not company:
+            company = Company(ticker=ticker.upper(), name=ticker.upper())
+            db.add(company)
+            await db.flush()
+
+        document = Document(
+            company_id=company.id,
+            year=year,
+            doc_type="10-K",
+            status="pending",
+            file_path=meta.get("file_path"),
+        )
+        db.add(document)
+        await db.commit()
+        await db.refresh(document)
+
+        await process_document(document.id, text, db)
+
+        return {
+            "status": "success",
+            "ticker": ticker.upper(),
+            "year": year,
+            "filing_date": meta.get("filing_date"),
+            "message": f"10-K for {ticker.upper()} {year} ingested successfully. Now retry search_filings.",
+        }
+    except Exception as exc:
+        return {"status": "error", "ticker": ticker.upper(), "year": year, "message": str(exc)}

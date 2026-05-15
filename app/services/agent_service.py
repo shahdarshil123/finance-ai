@@ -22,11 +22,20 @@ Today's date is {today}.
 
 When answering questions:
 - Always use the available tools to fetch real data before forming an answer
+- Always pass the `ticker` parameter to search_filings matching the exact company in the question — NEVER search filings without a ticker, and NEVER use results from a different company than the one being asked about
 - When asked about a specific year, search filings for THAT exact year first (pass it as the `year` parameter)
+- If no year is mentioned, use the most recent available year (default to current year minus 1)
 - When asked about guidance vs actual performance, search filings AND get stock metrics
+- When searching for financial figures (revenue, earnings, profit, margins), use specific 10-K language in the query parameter: e.g. "total net revenues annual results", "net income earnings per share", "gross margin operating income" — avoid single generic words like "revenue" or "earnings" which match methodology text instead of financial tables
+- If the first search_filings call returns only methodology or policy text without actual numbers, retry with a more specific query like "total revenues segment breakdown fiscal year results"
 - Be specific: include percentages, dollar amounts, and the exact date range used
 - Cite your sources: mention which filing year or date range the data comes from
-- If a search returns no results, retry without the year filter before concluding data is unavailable
+When search_filings returns empty results, you MUST follow this exact sequence — do not skip any step:
+  Step 1. Call fetch_10k with the ticker and year to download and ingest the filing
+  Step 2. After fetch_10k completes, retry search_filings with the same ticker and year
+  Step 3. Only if search_filings is still empty after step 2, respond with NEEDS_WEB_SEARCH
+  Never jump to NEEDS_WEB_SEARCH without first attempting fetch_10k.
+- If none of the available tools can answer the question AND fetch_10k has been attempted, respond with the single word: NEEDS_WEB_SEARCH
 - If data is unavailable or filings haven't been ingested, say so clearly
 
 For buy / hold / sell questions:
@@ -70,10 +79,9 @@ async def run_agent(query: str, db: AsyncSession) -> AsyncGenerator[str, None]:
     try:
         client = _get_client()
 
-        tool = types.Tool(function_declarations=TOOL_DECLARATIONS)
         config = types.GenerateContentConfig(
             system_instruction=_build_system_prompt(),
-            tools=[tool],
+            tools=[types.Tool(function_declarations=TOOL_DECLARATIONS)],
         )
 
         # Conversation history — we manage this manually
@@ -128,16 +136,17 @@ async def run_agent(query: str, db: AsyncSession) -> AsyncGenerator[str, None]:
 
         if response is not None:
             final_text = response.text
-            # Gemini returns None text when the last turn ended on tool calls.
-            # Explicitly request a synthesis pass.
+
+            # If the loop ended on tool calls, explicitly request a synthesis pass.
             if not final_text:
                 contents.append(
                     types.Content(
                         role="user",
                         parts=[types.Part(text=(
                             "You have now gathered all the data you need. "
-                            "Please synthesize it into a complete buy/hold/sell recommendation "
-                            "using the structured table format specified in your instructions."
+                            "Please synthesize it into a complete answer. "
+                            "If the tools did not return enough information, "
+                            "respond with the single word: NEEDS_WEB_SEARCH"
                         ))],
                     )
                 )
@@ -148,6 +157,21 @@ async def run_agent(query: str, db: AsyncSession) -> AsyncGenerator[str, None]:
                     config=config,
                 )
                 final_text = followup.text
+
+            # Phase 2: web search fallback when filing tools couldn't answer
+            if not final_text or final_text.strip() == "NEEDS_WEB_SEARCH":
+                yield f"data: {json.dumps({'type': 'step', 'content': 'Filing data insufficient — searching the web…'})}\n\n"
+                web_config = types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                )
+                web_response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=settings.gemini_model,
+                    contents=[types.Content(role="user", parts=[types.Part(text=query)])],
+                    config=web_config,
+                )
+                final_text = web_response.text
+
             yield f"data: {json.dumps({'type': 'final_answer', 'content': final_text})}\n\n"
 
     except Exception as exc:

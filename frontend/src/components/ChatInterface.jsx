@@ -29,7 +29,7 @@ export default function ChatInterface() {
 
     const userQuery = query
     setQuery('')
-    setEvents([{ type: 'user', content: userQuery }])
+    setEvents(prev => [...prev, { type: 'user', content: userQuery }])
     setLoading(true)
 
     try {
@@ -92,11 +92,18 @@ export default function ChatInterface() {
           </div>
         )}
         {events.map((event, i) => {
-          // Collect all filing sources seen so far for the final answer
+          // Collect search_filings results only from the current turn
           const sources = event.type === 'final_answer'
-            ? events
-                .filter(e => e.type === 'tool_result' && e.tool === 'search_filings')
-                .flatMap(e => e.result?.results ?? [])
+            ? (() => {
+                let turnStart = 0
+                for (let j = i - 1; j >= 0; j--) {
+                  if (events[j].type === 'user') { turnStart = j + 1; break }
+                }
+                return events
+                  .slice(turnStart, i)
+                  .filter(e => e.type === 'tool_result' && e.tool === 'search_filings')
+                  .flatMap(e => e.result?.results ?? [])
+              })()
             : null
           return <EventCard key={i} event={event} sources={sources} />
         })}
